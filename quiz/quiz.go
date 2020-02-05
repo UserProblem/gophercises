@@ -26,6 +26,11 @@ func init() {
 	flag.IntVar(&timeLimit, "t", defaultTimeLimit, usageTimeLimit+" (shorthand)")
 }
 
+type problem struct {
+	question string
+	answer   string
+}
+
 func main() {
 	flag.Parse()
 
@@ -41,19 +46,18 @@ func main() {
 	fmt.Printf("\nYou got %d out of %d correct answers.\n", correctAnswers, totalProblems)
 }
 
-func loadProblems(filename string) ([][]string, error) {
+func loadProblems(filename string) ([]problem, error) {
 	fd, err := os.Open(problemsFilename)
-	defer fd.Close()
-
-	var problems [][]string
-
 	if err != nil {
 		return nil, err
 	}
+	defer fd.Close()
+
+	var problems []problem
 
 	problemSet := csv.NewReader(fd)
 	for {
-		record, err := problemSet.Read()
+		rec, err := problemSet.Read()
 		if err == io.EOF {
 			break
 		}
@@ -61,30 +65,30 @@ func loadProblems(filename string) ([][]string, error) {
 			return nil, err
 		}
 
-		record[0] = strings.TrimSpace(record[0])
-		record[1] = strings.ToLower(strings.TrimSpace(record[1]))
-		problems = append(problems, record)
+		problems = append(problems, problem{
+			question: strings.TrimSpace(rec[0]),
+			answer:   strings.ToLower(strings.TrimSpace(rec[1])),
+		})
 	}
 
 	return problems, nil
 }
 
-func runQuiz(problems [][]string, timeLimit int) int {
+func runQuiz(problems []problem, timeLimit int) int {
 	fmt.Println("Press ENTER to start.")
-	userInputChan := userInputReader()
-	_ = <-userInputChan
+	inputChan := userInputReader()
+	_ = <-inputChan
 
 	timeout := time.After(time.Duration(timeLimit) * time.Second)
 	correct := 0
 
 Qloop:
-	for idx := range problems {
-		question, answer := problems[idx][0], problems[idx][1]
-		fmt.Printf("\n%s ", question)
+	for _, p := range problems {
+		fmt.Printf("\n%s ", p.question)
 
 		select {
-		case userInput := <-userInputChan:
-			if answer == userInput {
+		case userInput := <-inputChan:
+			if p.answer == userInput {
 				correct++
 			}
 
